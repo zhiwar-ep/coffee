@@ -1,0 +1,252 @@
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      blockMeshDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+scale 1;
+
+// One user-controlled refinement factor and all derived quantities
+#include "meshControls"
+
+centralCellSize #eval "$baseCellSize/$centralRefinementFactor";
+
+// Central box dimensions: 0.020 x 0.020 x 0.028 m
+nCentralXY #eval "round(0.020/$centralCellSize)";
+nCentralZ  #eval "round(0.028/$centralCellSize)";
+
+// Number of cells normal to the outer side/top/bottom slabs.
+// These are deliberately kept modest; grading makes the cell adjacent
+// to the central box exactly centralCellSize and grows outward.
+nOuterXY 4;
+nOuterZ  3;
+
+// Exact simpleGrading for the 10-mm outer x/y slabs with 4 cells.
+// Solve t^3+t^2+t+1 = L/h analytically, then grading = 1/t^3.
+Sxy #eval "0.010/$centralCellSize";
+Qxy #eval "20.0/27.0-$Sxy";
+Dxy #eval "sqr($Qxy/2.0)+pow(2.0/9.0,3)";
+Txy #eval "cbrt(-$Qxy/2.0+sqrt($Dxy))+cbrt(-$Qxy/2.0-sqrt($Dxy))-1.0/3.0";
+gXY    #eval "1.0/pow($Txy,3)";
+gXYinv #eval "1.0/$gXY";
+
+// Exact simpleGrading for the 6-mm outer z slabs with 3 cells.
+// Solve t^2+t+1 = L/h, then grading = 1/t^2.
+Sz #eval "0.006/$centralCellSize";
+Tz #eval "(-1.0+sqrt(4.0*$Sz-3.0))/2.0";
+gZ    #eval "1.0/sqr($Tz)";
+gZinv #eval "1.0/$gZ";
+
+
+// Cartesian partition lines:
+// x = -0.020, -0.010, 0.010, 0.020
+// y = -0.020, -0.010, 0.010, 0.020
+// z = -0.020, -0.014, 0.014, 0.020
+//
+// The central box is [-0.010,0.010] x [-0.010,0.010] x [-0.014,0.014].
+// With 2 mm cells, it extends by two complete cell layers beyond the
+// effective setFields region in every direction.
+
+vertices
+(
+    (-0.020 -0.020 -0.020)    // 0
+    (-0.010 -0.020 -0.020)    // 1
+    ( 0.010 -0.020 -0.020)    // 2
+    ( 0.020 -0.020 -0.020)    // 3
+    (-0.020 -0.010 -0.020)    // 4
+    (-0.010 -0.010 -0.020)    // 5
+    ( 0.010 -0.010 -0.020)    // 6
+    ( 0.020 -0.010 -0.020)    // 7
+    (-0.020  0.010 -0.020)    // 8
+    (-0.010  0.010 -0.020)    // 9
+    ( 0.010  0.010 -0.020)    // 10
+    ( 0.020  0.010 -0.020)    // 11
+    (-0.020  0.020 -0.020)    // 12
+    (-0.010  0.020 -0.020)    // 13
+    ( 0.010  0.020 -0.020)    // 14
+    ( 0.020  0.020 -0.020)    // 15
+    (-0.020 -0.020 -0.014)    // 16
+    (-0.010 -0.020 -0.014)    // 17
+    ( 0.010 -0.020 -0.014)    // 18
+    ( 0.020 -0.020 -0.014)    // 19
+    (-0.020 -0.010 -0.014)    // 20
+    (-0.010 -0.010 -0.014)    // 21
+    ( 0.010 -0.010 -0.014)    // 22
+    ( 0.020 -0.010 -0.014)    // 23
+    (-0.020  0.010 -0.014)    // 24
+    (-0.010  0.010 -0.014)    // 25
+    ( 0.010  0.010 -0.014)    // 26
+    ( 0.020  0.010 -0.014)    // 27
+    (-0.020  0.020 -0.014)    // 28
+    (-0.010  0.020 -0.014)    // 29
+    ( 0.010  0.020 -0.014)    // 30
+    ( 0.020  0.020 -0.014)    // 31
+    (-0.020 -0.020  0.014)    // 32
+    (-0.010 -0.020  0.014)    // 33
+    ( 0.010 -0.020  0.014)    // 34
+    ( 0.020 -0.020  0.014)    // 35
+    (-0.020 -0.010  0.014)    // 36
+    (-0.010 -0.010  0.014)    // 37
+    ( 0.010 -0.010  0.014)    // 38
+    ( 0.020 -0.010  0.014)    // 39
+    (-0.020  0.010  0.014)    // 40
+    (-0.010  0.010  0.014)    // 41
+    ( 0.010  0.010  0.014)    // 42
+    ( 0.020  0.010  0.014)    // 43
+    (-0.020  0.020  0.014)    // 44
+    (-0.010  0.020  0.014)    // 45
+    ( 0.010  0.020  0.014)    // 46
+    ( 0.020  0.020  0.014)    // 47
+    (-0.020 -0.020  0.020)    // 48
+    (-0.010 -0.020  0.020)    // 49
+    ( 0.010 -0.020  0.020)    // 50
+    ( 0.020 -0.020  0.020)    // 51
+    (-0.020 -0.010  0.020)    // 52
+    (-0.010 -0.010  0.020)    // 53
+    ( 0.010 -0.010  0.020)    // 54
+    ( 0.020 -0.010  0.020)    // 55
+    (-0.020  0.010  0.020)    // 56
+    (-0.010  0.010  0.020)    // 57
+    ( 0.010  0.010  0.020)    // 58
+    ( 0.020  0.010  0.020)    // 59
+    (-0.020  0.020  0.020)    // 60
+    (-0.010  0.020  0.020)    // 61
+    ( 0.010  0.020  0.020)    // 62
+    ( 0.020  0.020  0.020)    // 63
+);
+
+blocks
+(
+    hex (0 1 5 4 16 17 21 20)       ($nOuterXY   $nOuterXY   $nOuterZ)  simpleGrading ($gXY    $gXY    $gZ)
+    hex (1 2 6 5 17 18 22 21)       ($nCentralXY $nOuterXY   $nOuterZ)  simpleGrading (1       $gXY    $gZ)
+    hex (2 3 7 6 18 19 23 22)       ($nOuterXY   $nOuterXY   $nOuterZ)  simpleGrading ($gXYinv $gXY    $gZ)
+
+    hex (4 5 9 8 20 21 25 24)       ($nOuterXY   $nCentralXY $nOuterZ)  simpleGrading ($gXY    1       $gZ)
+    hex (5 6 10 9 21 22 26 25)      ($nCentralXY $nCentralXY $nOuterZ)  simpleGrading (1       1       $gZ)
+    hex (6 7 11 10 22 23 27 26)     ($nOuterXY   $nCentralXY $nOuterZ)  simpleGrading ($gXYinv 1       $gZ)
+
+    hex (8 9 13 12 24 25 29 28)     ($nOuterXY   $nOuterXY   $nOuterZ)  simpleGrading ($gXY    $gXYinv $gZ)
+    hex (9 10 14 13 25 26 30 29)    ($nCentralXY $nOuterXY   $nOuterZ)  simpleGrading (1       $gXYinv $gZ)
+    hex (10 11 15 14 26 27 31 30)   ($nOuterXY   $nOuterXY   $nOuterZ)  simpleGrading ($gXYinv $gXYinv $gZ)
+
+    hex (16 17 21 20 32 33 37 36)   ($nOuterXY   $nOuterXY   $nCentralZ) simpleGrading ($gXY    $gXY    1)
+    hex (17 18 22 21 33 34 38 37)   ($nCentralXY $nOuterXY   $nCentralZ) simpleGrading (1       $gXY    1)
+    hex (18 19 23 22 34 35 39 38)   ($nOuterXY   $nOuterXY   $nCentralZ) simpleGrading ($gXYinv $gXY    1)
+
+    hex (20 21 25 24 36 37 41 40)   ($nOuterXY   $nCentralXY $nCentralZ) simpleGrading ($gXY    1       1)
+
+    // CENTRAL BLOCK: uniform cubic cells
+    hex (21 22 26 25 37 38 42 41)   ($nCentralXY $nCentralXY $nCentralZ) simpleGrading (1 1 1)
+
+    hex (22 23 27 26 38 39 43 42)   ($nOuterXY   $nCentralXY $nCentralZ) simpleGrading ($gXYinv 1       1)
+
+    hex (24 25 29 28 40 41 45 44)   ($nOuterXY   $nOuterXY   $nCentralZ) simpleGrading ($gXY    $gXYinv 1)
+    hex (25 26 30 29 41 42 46 45)   ($nCentralXY $nOuterXY   $nCentralZ) simpleGrading (1       $gXYinv 1)
+    hex (26 27 31 30 42 43 47 46)   ($nOuterXY   $nOuterXY   $nCentralZ) simpleGrading ($gXYinv $gXYinv 1)
+
+    hex (32 33 37 36 48 49 53 52)   ($nOuterXY   $nOuterXY   $nOuterZ)  simpleGrading ($gXY    $gXY    $gZinv)
+    hex (33 34 38 37 49 50 54 53)   ($nCentralXY $nOuterXY   $nOuterZ)  simpleGrading (1       $gXY    $gZinv)
+    hex (34 35 39 38 50 51 55 54)   ($nOuterXY   $nOuterXY   $nOuterZ)  simpleGrading ($gXYinv $gXY    $gZinv)
+
+    hex (36 37 41 40 52 53 57 56)   ($nOuterXY   $nCentralXY $nOuterZ)  simpleGrading ($gXY    1       $gZinv)
+    hex (37 38 42 41 53 54 58 57)   ($nCentralXY $nCentralXY $nOuterZ)  simpleGrading (1       1       $gZinv)
+    hex (38 39 43 42 54 55 59 58)   ($nOuterXY   $nCentralXY $nOuterZ)  simpleGrading ($gXYinv 1       $gZinv)
+
+    hex (40 41 45 44 56 57 61 60)   ($nOuterXY   $nOuterXY   $nOuterZ)  simpleGrading ($gXY    $gXYinv $gZinv)
+    hex (41 42 46 45 57 58 62 61)   ($nCentralXY $nOuterXY   $nOuterZ)  simpleGrading (1       $gXYinv $gZinv)
+    hex (42 43 47 46 58 59 63 62)   ($nOuterXY   $nOuterXY   $nOuterZ)  simpleGrading ($gXYinv $gXYinv $gZinv)
+);
+
+edges
+(
+);
+
+boundary
+(
+    inlet
+    {
+        type patch;
+        faces
+        (
+            (0 1 17 16)
+            (1 2 18 17)
+            (2 3 19 18)
+            (16 17 33 32)
+            (17 18 34 33)
+            (18 19 35 34)
+            (32 33 49 48)
+            (33 34 50 49)
+            (34 35 51 50)
+        );
+    }
+
+    outlet
+    {
+        type patch;
+        faces
+        (
+            (12 28 29 13)
+            (13 29 30 14)
+            (14 30 31 15)
+            (28 44 45 29)
+            (29 45 46 30)
+            (30 46 47 31)
+            (44 60 61 45)
+            (45 61 62 46)
+            (46 62 63 47)
+        );
+    }
+
+    wall
+    {
+        type wall;
+        faces
+        (
+            (0 16 20 4)
+            (4 20 24 8)
+            (8 24 28 12)
+            (16 32 36 20)
+            (20 36 40 24)
+            (24 40 44 28)
+            (32 48 52 36)
+            (36 52 56 40)
+            (40 56 60 44)
+            (3 7 23 19)
+            (7 11 27 23)
+            (11 15 31 27)
+            (19 23 39 35)
+            (23 27 43 39)
+            (27 31 47 43)
+            (35 39 55 51)
+            (39 43 59 55)
+            (43 47 63 59)
+            (0 4 5 1)
+            (1 5 6 2)
+            (2 6 7 3)
+            (4 8 9 5)
+            (5 9 10 6)
+            (6 10 11 7)
+            (8 12 13 9)
+            (9 13 14 10)
+            (10 14 15 11)
+            (48 49 53 52)
+            (49 50 54 53)
+            (50 51 55 54)
+            (52 53 57 56)
+            (53 54 58 57)
+            (54 55 59 58)
+            (56 57 61 60)
+            (57 58 62 61)
+            (58 59 63 62)
+        );
+    }
+);
+
+mergePatchPairs
+(
+);
+
+// ************************************************************************* //

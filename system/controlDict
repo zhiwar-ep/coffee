@@ -1,0 +1,334 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  8
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "system";
+    object      controlDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+application     porousGasificationFoam;
+
+startFrom       startTime;
+
+startTime       0; 
+
+stopAt          endTime;
+
+endTime         200;
+
+deltaT          0.005;
+
+writeControl    adjustableRunTime;
+
+writeInterval   0.5;
+
+purgeWrite      0;
+
+summaryOutput       true;
+diagnosticOutput    false;
+
+writeFormat     ascii;
+
+writePrecision  8;
+
+writeCompression off;
+
+timeFormat      general;
+
+timePrecision   6;
+
+runTimeModifiable yes;
+
+adjustTimeStep no;
+
+maxCo       0.5;
+
+maxDi       5000;
+
+maxDeltaT	0.5;
+
+
+
+
+
+functions
+{
+
+     #includeFunc probes
+
+
+
+    solidStats
+    {
+        type            coded;
+        libs            (utilityFunctionObjects);
+        name            solidStats;
+
+        writeControl    writeTime;
+        writeInterval   1;
+
+        codeInclude
+        #{
+            #include "fvCFD.H"
+            #include "PstreamReduceOps.H"
+            #include "DynamicList.H"
+            #include <fstream>
+            #include <iomanip>
+        #};
+
+        codeWrite
+        #{
+            const fvMesh& m = mesh();
+
+            const volScalarField& porosityF =
+                m.lookupObject<volScalarField>("porosityF");
+
+            const volScalarField& Yrawm =
+                m.lookupObject<volScalarField>("Yraw");
+
+            const scalarField& V = m.V();
+
+            const scalar criticalPorosity = 0.98;
+
+
+            // =====================================================
+            // FIXED INITIAL REGION
+            //
+            // Cells where initial porosityF < criticalPorosity
+            // remain fixed for the entire simulation.
+            // =====================================================
+
+            static bool initialRegionInitialized = false;
+            static DynamicList<label> initialRegionCells;
+
+            if (!initialRegionInitialized)
+            {
+                volScalarField porosityF0
+                (
+                    IOobject
+                    (
+                        "porosityF",
+                        "0",
+                        m,
+                        IOobject::MUST_READ,
+                        IOobject::NO_WRITE,
+                        false
+                    ),
+                    m
+                );
+
+                forAll(porosityF0, cellI)
+                {
+                    if (porosityF0[cellI] < criticalPorosity)
+                    {
+                        initialRegionCells.append(cellI);
+                    }
+                }
+
+                initialRegionInitialized = true;
+            }
+
+
+            // =====================================================
+            // CURRENT DYNAMIC REGION:
+            // porosityF < criticalPorosity
+            // =====================================================
+
+            label nCellsBelowCriticalPorosity = 0;
+
+            scalar regionVolume = 0.0;
+
+            scalar totalYrawAll = 0.0;
+
+            scalar totalYrawBelowCriticalPorosity = 0.0;
+
+            scalar porosityVolSum = 0.0;
+
+
+            // =====================================================
+            // WHOLE DOMAIN + CURRENT REGION
+            // =====================================================
+
+            forAll(porosityF, cellI)
+            {
+                const scalar por = porosityF[cellI];
+                const scalar cellVol = V[cellI];
+
+                totalYrawAll += Yrawm[cellI];
+
+                if (por < criticalPorosity)
+                {
+                    nCellsBelowCriticalPorosity++;
+
+                    regionVolume += cellVol;
+
+                    totalYrawBelowCriticalPorosity +=
+                        Yrawm[cellI];
+
+                    porosityVolSum +=
+                        por * cellVol;
+                }
+            }
+
+
+            // =====================================================
+            // FIXED INITIAL REGION POROSITY
+            // =====================================================
+
+            scalar initialRegionVolume = 0.0;
+
+            scalar initialRegionPorosityVolSum = 0.0;
+
+            forAll(initialRegionCells, i)
+            {
+                const label cellI = initialRegionCells[i];
+
+                const scalar cellVol = V[cellI];
+
+                initialRegionVolume += cellVol;
+
+                initialRegionPorosityVolSum +=
+                    porosityF[cellI] * cellVol;
+            }
+
+
+            // =====================================================
+            // MPI REDUCTIONS
+            // =====================================================
+
+            reduce
+            (
+                nCellsBelowCriticalPorosity,
+                sumOp<label>()
+            );
+
+            reduce
+            (
+                regionVolume,
+                sumOp<scalar>()
+            );
+
+            reduce
+            (
+                totalYrawAll,
+                sumOp<scalar>()
+            );
+
+            reduce
+            (
+                totalYrawBelowCriticalPorosity,
+                sumOp<scalar>()
+            );
+
+            reduce
+            (
+                porosityVolSum,
+                sumOp<scalar>()
+            );
+
+            reduce
+            (
+                initialRegionVolume,
+                sumOp<scalar>()
+            );
+
+            reduce
+            (
+                initialRegionPorosityVolSum,
+                sumOp<scalar>()
+            );
+
+
+            // =====================================================
+            // AVERAGES
+            // =====================================================
+
+            scalar avgPorosityBelowCriticalPorosity = 0.0;
+
+            if (regionVolume > VSMALL)
+            {
+                avgPorosityBelowCriticalPorosity =
+                    porosityVolSum / regionVolume;
+            }
+
+
+            scalar avgPorosityInitialRegion = 0.0;
+
+            if (initialRegionVolume > VSMALL)
+            {
+                avgPorosityInitialRegion =
+                    initialRegionPorosityVolSum
+                  / initialRegionVolume;
+            }
+
+
+            // =====================================================
+            // WRITE ONE FILE
+            // =====================================================
+
+            if (Pstream::master())
+            {
+                fileName outDir =
+                    m.time().globalPath()
+                  / "postProcessing"
+                  / "solidStats"
+                  / "0";
+
+                mkDir(outDir);
+
+                fileName outFile =
+                    outDir / "solidStats.dat";
+
+                const bool fileExists = isFile(outFile);
+
+                std::ofstream os
+                (
+                    outFile.c_str(),
+                    std::ios::app
+                );
+
+                if (!fileExists)
+                {
+                    os
+                    << "# Time"
+                    << "\tCellsBelowCriticalPorosity"
+                    << "\tRegionVolume"
+                    << "\tTotalYrawAll"
+                    << "\tTotalYrawBelowCriticalPorosity"
+                    << "\tAvgPorosityBelowCriticalPorosity"
+                    << "\tAvgPorosityInitialRegion"
+                    << std::endl;
+                }
+
+                os
+                << std::scientific
+                << std::setprecision(10)
+
+                << m.time().value()
+                << "\t"
+                << nCellsBelowCriticalPorosity
+                << "\t"
+                << regionVolume
+                << "\t"
+                << totalYrawAll
+                << "\t"
+                << totalYrawBelowCriticalPorosity
+                << "\t"
+                << avgPorosityBelowCriticalPorosity
+                << "\t"
+                << avgPorosityInitialRegion
+                << std::endl;
+            }
+        #};
+    }
+}
+// ************************************************************************* //

@@ -1,0 +1,46 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  8
+     \\/     M anipulation  |
+-------------------------------------------------------------------------------
+Description
+    Writes out values of fields from cells nearest to specified locations.
+
+\*---------------------------------------------------------------------------*/
+
+#includeEtc "caseDicts/postProcessing/probes/probes.cfg"
+
+probeLocations
+(
+    ( 0 0.000001 0) // center
+    (0.0032 0.000001 0)  // mid
+    (0.004 00.000001 0)  //  near surface
+);
+
+fields
+(
+    p
+    Ts
+    T
+    Vearly
+    Vlate
+    Yraw
+    Yyellow
+    Ycrack
+    Ydev
+    Ydark
+    YColor
+    YBurnt
+    porosityF
+    rhos 
+    Msolidtotal
+    Ymoist
+    H2O
+    CO2
+    Srho
+
+);
+
+// ************************************************************************* //

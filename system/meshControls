@@ -1,0 +1,11 @@
+// Mesh resolution control
+// Use 1.0, 1.5, 2.0, 2.5, ...
+// 1.5 => central cell size = 2 mm / 1.5 = 1.333333 mm
+centralRefinementFactor  1;
+
+
+baseCellSize             0.002;
+
+
+solidMin                 (-0.00455 -0.00205 -0.00305);
+solidMax                 (0.00455 0.00205 0.00305);

@@ -1,0 +1,165 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  8
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      solidThermophysicalProperties;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+thermoType solidMixtureThermo<constHeterogeneous>;
+
+solidComponents
+(
+    raw moist yellow crack dev dark  Color Burnt
+);
+
+moistCoeffs
+{
+    transport
+    {
+	    K           0.58;
+    }
+    thermodynamics
+    {
+        Cp          4200;
+        Hf         -15.86e6;
+    }
+    density
+    {
+        rho         1000;
+    }
+};
+
+rawCoeffs
+{
+    transport
+    {
+        K           0.341; // (0.1046+0.255+0.255)/3./.6 Park2010, Asako2002
+    }
+    thermodynamics
+    {
+        Cp          1600;  //
+        Hf          -1.04e6;
+    }
+    density
+    {
+        rho          1100; //
+    }
+};
+
+
+
+yellowCoeffs
+{
+    transport
+    {
+        K           0.156; //
+    }
+    thermodynamics
+    {
+        Cp           1250; //
+        Hf          -2.12e4;
+    }
+    density
+    {
+        rho         900;
+    }
+};
+
+crackCoeffs
+{
+    transport
+    {
+        K           0.156; //
+    }
+    thermodynamics
+    {
+        Cp          1000; //
+        Hf          -2.12e4;
+    }
+    density
+    {
+        rho           1000;
+    }
+};
+
+devCoeffs
+{
+    transport
+    {
+        K           0.156; //
+    }
+    thermodynamics
+    {
+        Cp          1000; //
+        Hf          -2.12e4;
+    }
+    density
+    {
+        rho           1000;
+    }
+};
+
+darkCoeffs
+{
+    transport
+    {
+        K           0.156; //
+    }
+    thermodynamics
+    {
+        Cp          1000; //
+        Hf          -2.12e4;
+    }
+    density
+    {
+        rho           1000;
+    }
+};
+
+
+ColorCoeffs
+{
+    transport
+    {
+        K           0.156; //
+    }
+    thermodynamics
+    {
+        Cp          1000; //
+        Hf          -2.12e4;
+    }
+    density
+    {
+        rho           1000;
+    }
+};
+
+
+BurntCoeffs
+{
+    transport
+    {
+        K           0.156; //
+    }
+    thermodynamics
+    {
+        Cp          1000; //
+        Hf          -2.12e4;
+    }
+    density
+    {
+        rho           1000;
+    }
+};
+
+// ************************************************************************* //

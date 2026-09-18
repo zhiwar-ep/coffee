@@ -1,0 +1,129 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  8
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      solidThermophysicalProperties;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+chemistry           on;
+
+chemistryType
+{
+    solver            ode;
+}
+
+solidChemistryType
+{
+    solver              solidOde;
+    method              ODESolidHeterogeneousChemistryModel;
+    solidThermoType     const<constRad<constThermo<constRho>>>;
+}
+
+chemistrySolver     ode;
+
+solidChemistrySolver	solidOde;
+
+initialChemicalTimeStep 1e-1;
+
+turbulentReaction   off;
+solidReactionEnergyFromEnthalpy false;
+stoichiometricReactions false;
+showRelativeReactionRates false;
+
+solidChemistryTimeStepControl true;
+
+odeCoeffs
+{
+    solver          seulex;
+}
+
+solidOdeCoeffs
+{
+    //solver      seulex; //old solver
+
+    // Explicit adaptive Runge-Kutta solver.
+    // The old solid chemistry Jacobian is not fully consistent with
+    // the derivatives used by the ODE system. RKF45 uses the actual
+    // derivatives directly and does not rely on that Jacobian.
+    solver      RKF45;
+
+    // The OpenFOAM default absolute tolerance is SMALL, which is too
+    // restrictive for product species that initially have zero
+    // concentration.
+    absTol      1e-8;
+
+    // Retain the normal relative accuracy used by OpenFOAM ODE solvers.
+    relTol      1e-4;
+
+    // Keep the standard limit. Raising this value would only hide the
+    // underlying extremely small chemistry steps.
+    maxSteps    10000;
+}
+
+
+species
+(
+    H2O
+    Vearly Vlate
+
+);
+
+solidReactions
+(
+    // moisture (keep yours)
+   /* irreversibleSolidArrheniusHeterogeneousReaction
+    moist = H2O
+    (3.0e6  6.000e3  300  0.0e0  1) //* 60
+*/
+
+    // Stage I -> II
+    irreversibleSolidArrheniusHeterogeneousReaction
+    //rawToYellow = raw
+    raw = 0.99 yellow + 0.009 Vearly + 0.001 Color
+    (1.76e5   7e3  300  0.0e0  1)
+
+    // Stage II -> III (crack proxy stage)
+    irreversibleSolidArrheniusHeterogeneousReaction
+    //yellowToCrack = yellow
+    yellow = 0.99 crack + 0.01 Vearly
+    (0.15e8  0.9e4  300  0.0e0  1)
+
+    // Stage III -> IV (development; late volatiles + color grows faster)
+    irreversibleSolidArrheniusHeterogeneousReaction
+    //crackToDev = crack
+    //crack = 0.96 dev + 0.03 Vlate + 0.01 Color
+    //(6.0e13  1.850e4  300  0.0e0  1)
+
+    crack = 0.999 dev + 0.001 Vlate
+    (0.03e13  1.4e4  300  0.0e0  1)
+
+    // Stage IV -> V (dark/burnt onset)
+    irreversibleSolidArrheniusHeterogeneousReaction
+    //devToDark = dev
+    dev = 0.95 dark + 0.02 Color + 0.03 Burnt
+    (0.2e13  1.5e4  300  0.0e0  1)
+
+    // Peak-shaping: consume early volatiles late (gives Vearly an early peak)
+    // If your solver allows species-only reactions:
+    irreversibleSolidArrheniusHeterogeneousReaction
+    //VearlyToVlate = Vearly
+    Vearly = 1.0 Vlate
+    (0.15e9  1.2e4  300  0.0e0  1)
+
+);
+
+
+// ************************************************************************* //
+
+
+

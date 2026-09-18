@@ -1,0 +1,236 @@
+
+// ************************************************************************* //
+//                          LAMBDA-DOT MODEL
+// ************************************************************************* //
+
+// Available models:
+//     constant
+//     Ts
+//     dTsdt
+//     exactDifferential
+//
+// Only the parameters required by the selected model are used.
+
+lambdaMode exactDifferential;
+
+
+// ************************************************************************* //
+//                      exactDifferential MODEL
+// ************************************************************************* //
+//
+// Used only when:
+//
+//     lambdaMode exactDifferential;
+//
+// The total lambdaDot is calculated as:
+//
+//                       dLambda   dTs
+//     lambdaDot =       ------- * ---
+//                         dTs     dt
+//
+//                 +  SUM_i
+//
+//                       dLambda
+//                       ------- * sRhoS_i
+//                        dYm_i
+//
+// where:
+//
+//     lambda            dimensionless spring-length multiplier
+//     lambdaDot         rate of lambda change [1/s]
+//     Ts                solid temperature [K]
+//     dTs/dt            solid temperature rate [K/s]
+//     Ym_i              volumetric mass of solid species i [kg/m3]
+//     sRhoS_i           chemistry source of solid species i [kg/m3/s]
+//
+//
+// -------------------- Thermal contribution --------------------
+//
+// dLambda/dTs [1/K]
+//
+// Contribution:
+//
+//     lambdaDot_T = dlambdaOverDTs * dTs/dt
+//
+// Positive value:
+//     heating  -> positive lambdaDot
+//     cooling  -> negative lambdaDot
+//
+// Negative value reverses this behaviour.
+
+dlambdaOverDTs 0.00001;
+
+
+// -------------------- Chemistry contribution --------------------
+
+// Accounts for changes in lambda caused by consumption or production
+// of solid species during chemical reactions.
+//
+// dLambda/dYm_i [m3/kg]
+//
+// Contribution of each solid species:
+//
+//     lambdaDot_Ym_i = dlambdaOverDYmi_i * sRhoS_i
+//
+// Total chemistry contribution:
+//
+//     lambdaDot_chem = SUM_i(lambdaDot_Ym_i)
+//
+// Since sRhoS_i is normally negative when a solid species is consumed:
+//
+//     positive dlambdaOverDYmi  -> negative lambdaDot during consumption
+//                               -> shrinkage
+//
+//     negative dlambdaOverDYmi  -> positive lambdaDot during consumption
+//                               -> expansion
+//// Example:
+// if a solid species is being consumed, sRhoS_i < 0.
+// Therefore, with a positive dlambdaOverDYmi_i,
+// the chemistry contribution is negative and causes shrinkage.
+
+//
+// One value can be applied to all solid species:
+
+dlambdaOverDYmi 0.0;
+
+
+// Alternatively, individual coefficients can be assigned per species:
+//
+// dlambdaOverDYmi
+// {
+//     wood    0.001;
+//     char1   0.0;
+//     char    0.0;
+//     hum     0.0;
+// }
+//
+// Species not listed in the dictionary receive a coefficient of 0.
+
+
+// ************************************************************************* //
+//                         Ts AND dTsdt MODELS
+// ************************************************************************* //
+//
+// Used only when:
+//
+//     lambdaMode Ts;
+//
+// or:
+//
+//     lambdaMode dTsdt;
+//
+// For Ts:
+//     x = Ts [K]
+//     lambdaDot = f(Ts)
+//
+// For dTsdt:
+//     x = (Ts_now - Ts_old)/deltaT [K/s]
+//     lambdaDot = f(dTs/dt)
+//
+// The coded Function1 below defines f(x).
+
+lambdaDot
+{
+    type coded;
+
+    code
+    #{
+        return 0.00001*x;
+    #};
+}
+
+
+// ************************************************************************* //
+//                           CONSTANT MODEL
+// ************************************************************************* //
+//
+// Used only when:
+//
+//     lambdaMode constant;
+//
+// Constant lambdaDot value [1/s].
+
+lambdaValue 0.5;
+
+
+// ************************************************************************* //
+//                       SOLID VELOCITY INTERPOLATION
+// ************************************************************************* //
+
+// true:
+//     interpolate raw DEM velocity (UsDEM) into a continuous solid
+//     velocity field Us.
+//
+// false:
+//     use raw UsDEM directly. Cells without particle centres keep Us = 0.
+
+interpolateUs true;
+
+
+// Available interpolation models:
+//
+//     laplaceSetValues
+//     laplaceAnchored
+
+interpolationMode laplaceSetValues;
+
+
+// ************************************************************************* //
+//                       laplaceSetValues SETTINGS
+// ************************************************************************* //
+//
+// Additional pseudo-time diffusion/smoothing corrections after the
+// initial hard setValues Laplace interpolation.
+//
+// 0 : no additional correction
+// 1+ : progressively smoother Us field
+
+nLaplaceSetValuesCorrectors 0;
+
+
+// ************************************************************************* //
+//                       laplaceAnchored SETTINGS
+// ************************************************************************* //
+//
+// These parameters are used only when:
+//
+//     interpolationMode laplaceAnchored;
+
+
+// Strength of the constraint that keeps cells containing DEM particles
+// close to their original UsDEM velocity.
+//
+// Larger value:
+//     stronger DEM velocity constraint.
+//
+// Smaller value:
+//     more smoothing by neighbouring cells.
+
+demVelocityAnchorCoeff 1e6;
+
+
+// Weak background constraint used in solid cells without DEM particles.
+//
+// Its main purpose is regularisation of the Laplace equation.
+//
+// Larger value:
+//     empty cells are pulled more strongly toward Us = 0.
+//
+// Smaller value:
+//     velocity propagates more freely from DEM-populated cells.
+
+backgroundUsAnchorCoeff 1e-12;
+
+
+// Number of additional interpolation/smoothing solves.
+//
+// Larger value:
+//     smoother and more spatially distributed Us.
+//
+// Smaller value:
+//     sharper and more localised Us.
+
+nUsInterpolationCorrectors 2;
+
+
+// ************************************************************************* //

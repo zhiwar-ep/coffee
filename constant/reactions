@@ -1,0 +1,11 @@
+species
+(
+    CO2
+    H2O
+    Vlate
+    Vearly
+);
+
+reactions
+(
+);
