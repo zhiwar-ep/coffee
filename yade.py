@@ -999,9 +999,9 @@ O.engines = [
         #GlobalStiffnessTimeStepper(timestepSafetyCoefficient=0.7, defaultDt=yadeDtFixed, timeStepUpdateInterval=20, parallelMode=True, label="ts"),
         fluidCoupling,  #to be called after timestepper
         
-        NewtonIntegrator(damping=0.99, label='newton', gravity=(0, 0.0, 0)),
-        PyRunner(command='apply_spring_forces()', iterPeriod=20, firstIterRun=1),
         
+        PyRunner(command='apply_spring_forces()', iterPeriod=20, firstIterRun=1),
+        NewtonIntegrator(damping=0.99, label='newton', gravity=(0, 0.0, 0)),
         PyRunner(command="export_springs()", iterPeriod=timeRatio), # i works!
         PyRunner(command="export_spheres()", iterPeriod=timeRatio),
 
