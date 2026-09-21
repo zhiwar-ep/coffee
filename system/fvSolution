@@ -22,19 +22,20 @@ solvers
         solver          diagonal;
     }
 
-    p
-    {
-        solver           PCG;
-        preconditioner   DIC;
-        tolerance        1e-6;
-        relTol           1e-2;
-    }
+  p
+{
+    solver          PCG;
+    preconditioner  DIC;
+    tolerance       1e-5;
+    relTol          0.05;
+}
 
-    pFinal
-    {
-        $p;
-        relTol           0.0;
-    }
+pFinal
+{
+    $p;
+    tolerance       1e-6;
+    relTol          0;
+}
 
 
     "(U|h|Yi|Ys|Ym|porosity)"
@@ -52,13 +53,14 @@ solvers
     }   
 
 
-    Ts
+
+Ts
 {
     solver          PBiCGStab;
     preconditioner  DILU;
-    tolerance       1e-10;
-    relTol          1e-6;
-    maxIter         1000;
+    tolerance       1e-7;
+    relTol          1e-3;
+    maxIter         200;
 }
 
     rhos
@@ -100,13 +102,15 @@ solvers
 //     maxIter     1000;
 
 // }
- solidH
-    {
-        solver           PCG;
-        preconditioner   DIC;
-        tolerance        1e-12;
-        relTol           1e-7;
-    }
+
+
+    solidH
+{
+    solver          PCG;
+    preconditioner  DIC;
+    tolerance       1e-8;
+    relTol          1e-3;
+}
 
 }
 
@@ -115,8 +119,8 @@ PIMPLE
 {
     momentumPredictor yes;
     nOuterCorrectors  1;
-    nCorrectors     2;
-    nNonOrthogonalCorrectors 1;
+    nCorrectors     1;
+    nNonOrthogonalCorrectors 0;
 }
 
 

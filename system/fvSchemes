@@ -44,7 +44,7 @@ divSchemes
 
 laplacianSchemes
 {
-    default         Gauss linear limited 1;
+    default         Gauss linear orthogonal;
 }
 
 interpolationSchemes
@@ -54,7 +54,7 @@ interpolationSchemes
 
 snGradSchemes
 {
-    default         limited 1;
+    default         orthogonal;
 }
 
 // ************************************************************************* //

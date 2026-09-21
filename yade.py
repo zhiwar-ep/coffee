@@ -33,14 +33,14 @@ if mp.rank == 0:
 
 
 parallelYade=True 
-numProcOF=2
+numProcOF=4
 
 
 
 O.periodic = False # if true, define O.cell.setBox
 #O.cell.setBox(0.01000005, 0.0100005, 0.0100005)   #comment out if O.periodic = False
-numspheres = 1000
-young = 25e7
+numspheres = 400
+young = 25e6 #5e6
 density = 1200
 NSTEPS = int(round(endTime / yadeDtFixed))
 #NSTEPS = 12000000 #int(2e5)
@@ -52,12 +52,14 @@ O.materials.append(FrictMat(young=young, poisson=0.5, frictionAngle=radians(15),
 O.materials.append(FrictMat(young=young * 100, poisson=0.5, frictionAngle=0, density=0, label='wallmat'))
 
 
-# size of overall domain
+
+# size of the domain  containing the spheres
 maxvalX = 0.02
 maxvalY = 0.01
 maxvalZ = 0.01
 
 hx, hy, hz = maxvalX/2., maxvalY/2., maxvalZ/2.
+
 
 # -----------------------
 # Coffee bean geometry
@@ -67,11 +69,10 @@ L = 0.009
 W = 0.006
 T = 0.004
 
-rMean = 0.0001
+
 rRelFuzz = 0.0
 
-# برای بخش‌های دیگر new.py
-particle_radius = rMean
+particle_radius = 1e-5
 
 
 def insideCoffeeBean(pt):
@@ -95,23 +96,35 @@ def insideCoffeeBean(pt):
     return (base <= 1.0) and (bean <= 1.0)
 
 
+
+particle_radius = 1e-5      # very small radius spheres
+placement_radius = 0.0002 # for placement of spheres assume larger spheres to prevent coagulation of spheres in one place
+reference_radius = 0.00075  # radius of a more stable spheres
+effective_mass = (density * (4.0 / 3.0) * math.pi * reference_radius**3)
+
+effective_inertia = ((2.0 / 5.0) * effective_mass * reference_radius**2)
+
+
 sp = pack.SpherePack()
 
 sp.makeCloud(
     (-L/2, -T/2, -W/2),
     ( L/2,  T/2,  W/2),
-    rMean=rMean,
-    rRelFuzz=rRelFuzz,
+    rMean=placement_radius,
+    rRelFuzz=0,
     num=numspheres,
     periodic=False,
     seed=fixed_seed
 )
 
+
+
+
 spBean = pack.SpherePack()
 
 for center, rad in sp:
     if insideCoffeeBean(center):
-        spBean.add(center, rad)
+        spBean.add(center, particle_radius)
 
 print("Coffee bean spheres:", len(spBean))
 
@@ -120,16 +133,25 @@ O.bodies.append([
     for center, rad in spBean
 ])
 
+for b in O.bodies:
+    if isinstance(b.shape, Sphere):
+        b.state.mass = effective_mass
+        b.state.inertia = Vector3(
+            effective_inertia,
+            effective_inertia,
+            effective_inertia
+        )
+
+
 
 
 # spring creation 
 #----------------
 spring_damping = 1.0
-mass = 0.00015                          # same as wood sample
-#spring_k = (spring_damping**2) / (4 * mass)
-spring_k = 0.1
+mass = 0.000268                          # same as wood sample
+spring_k = (spring_damping**2) / (4 * mass)
 min_elongation_percent = 80             # freeze threshold (compression)
-max_elongation_percent = 1000              # break threshold (expansion)
+max_elongation_percent = 1000               # break threshold (expansion)
 
 print(f"[SPRINGS] spring_k = {spring_k:.6e}")
 
@@ -992,9 +1014,11 @@ def printlambdaDotNew():
     
 O.engines = [
         ForceResetter(),
-
-
         InsertionSortCollider([Bo1_Sphere_Aabb(), Bo1_Box_Aabb()], label='collider', allowBiggerThanPeriod=True),
+
+        #InteractionLoop([Ig2_Sphere_Sphere_ScGeom(), Ig2_Box_Sphere_ScGeom()], [Ip2_FrictMat_FrictMat_FrictPhys()], [Law2_ScGeom_FrictPhys_CundallStrack()],label='InteractionLoop'),
+        InteractionLoop([Ig2_Box_Sphere_ScGeom()], [Ip2_FrictMat_FrictMat_FrictPhys()], [Law2_ScGeom_FrictPhys_CundallStrack()],
+                label='InteractionLoop'),
 
         #GlobalStiffnessTimeStepper(timestepSafetyCoefficient=0.7, defaultDt=yadeDtFixed, timeStepUpdateInterval=20, parallelMode=True, label="ts"),
         fluidCoupling,  #to be called after timestepper
@@ -1027,8 +1051,8 @@ mp.USE_CPP_INTERS = False
 mp.ERASE_REMOTE = True
 mp.ERASE_REMOTE_MASTER = True
 
-mp.REALLOC_FREQUENCY = 12
-mp.REALLOCATE_FREQUENCY = 12
+mp.REALLOC_FREQUENCY = 1000
+mp.REALLOCATE_FREQUENCY = 1000
 
 mp.fluidBodies = sphereIDs
 mp.DOMAIN_DECOMPOSITION = True
@@ -1071,7 +1095,7 @@ def eraseRemote_keepFluidDomains():
 
 # Replace mpy's eraseRemote with the protected version
 mp.eraseRemote = eraseRemote_keepFluidDomains
-
+150
 
 
 mp.mpirun(NSTEPS,np=numProcOF)
