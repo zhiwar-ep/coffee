@@ -10,7 +10,7 @@ comm = mp.comm_slave
 
 #print("YADE: current working directory:", os.getcwd())
 
-writeInterval = 0.5   # seconds ( = OpenFOAM writeInterval controlDict )
+writeInterval = 0.1   # seconds ( = OpenFOAM writeInterval controlDict )
 endTime = 900.0
 
 
@@ -18,13 +18,32 @@ spring_frame_number = 0
 sphere_frame_number = 0
 
 
-yadeDtFixed = 5e-6 #5e-6
+# OpenFOAM timestep
+OFdeltaT = 0.01
+
+# YADE mechanical sub-step
+yadeDtFixed = 50e-6
+
 O.dynDt = False
-O.dt    = yadeDtFixed
+O.dt = yadeDtFixed
 
+# Number of YADE substeps inside one OpenFOAM timestep. springs apply only once per this 
+stepsPerOF = int(round(OFdeltaT / yadeDtFixed))
+stepsPerOF = max(1, stepsPerOF)
 
+# Output interval
 timeRatio = int(round(writeInterval / yadeDtFixed))
 timeRatio = max(1, timeRatio)
+
+if mp.rank == 0:
+    print(
+        "[TIME SETTINGS]",
+        "OFdeltaT =", OFdeltaT,
+        "yadeDt =", yadeDtFixed,
+        "stepsPerOF =", stepsPerOF
+    )
+
+
 
 
 if mp.rank == 0:
@@ -39,12 +58,12 @@ numProcOF=4
 
 O.periodic = False # if true, define O.cell.setBox
 #O.cell.setBox(0.01000005, 0.0100005, 0.0100005)   #comment out if O.periodic = False
-numspheres = 400
+numspheres = 550
 young = 25e6 #5e6
 density = 1200
 NSTEPS = int(round(endTime / yadeDtFixed))
 #NSTEPS = 12000000 #int(2e5)
-fixed_seed = 2 # to keep random arrangment of spheres repertable. if changing this value, the arrangment will be different.
+fixed_seed = 3 # to keep random arrangment of spheres repertable. if changing this value, the arrangment will be different.
 
 
 
@@ -98,11 +117,11 @@ def insideCoffeeBean(pt):
 
 
 particle_radius = 1e-5      # very small radius spheres
-placement_radius = 0.0002 # for placement of spheres assume larger spheres to prevent coagulation of spheres in one place
+placement_radius = 0.0001 # for placement of spheres assume larger spheres to prevent coagulation of spheres in one place
 reference_radius = 0.00075  # radius of a more stable spheres
-effective_mass = (density * (4.0 / 3.0) * math.pi * reference_radius**3)
+#effective_mass = (density * (4.0 / 3.0) * math.pi * reference_radius**3)
 
-effective_inertia = ((2.0 / 5.0) * effective_mass * reference_radius**2)
+#effective_inertia = ((2.0 / 5.0) * effective_mass * reference_radius**2)
 
 
 sp = pack.SpherePack()
@@ -128,18 +147,44 @@ for center, rad in sp:
 
 print("Coffee bean spheres:", len(spBean))
 
+
+# Physical mass of the whole coffee bean
+bean_mass = 0.0002   # kg
+
+n_particles = len(spBean)
+
+particle_mass = bean_mass / n_particles
+
+particle_inertia = (
+    (2.0 / 5.0)
+    * particle_mass
+    * reference_radius**2
+)
+
+print(
+    "[MASS]",
+    "bean_mass =", bean_mass,
+    "n_particles =", n_particles,
+    "particle_mass =", particle_mass,
+    "total_DEM_mass =", particle_mass * n_particles
+)
+
+
 O.bodies.append([
     sphere(center, rad, material='spheremat')
     for center, rad in spBean
 ])
 
+
 for b in O.bodies:
     if isinstance(b.shape, Sphere):
-        b.state.mass = effective_mass
+
+        b.state.mass = particle_mass
+
         b.state.inertia = Vector3(
-            effective_inertia,
-            effective_inertia,
-            effective_inertia
+            particle_inertia,
+            particle_inertia,
+            particle_inertia
         )
 
 
@@ -147,11 +192,18 @@ for b in O.bodies:
 
 # spring creation 
 #----------------
-spring_damping = 1.0
-mass = 0.000268                          # same as wood sample
-spring_k = (spring_damping**2) / (4 * mass)
+#spring_damping = 1.0
+#mass = 0.0002                          # same as wood sample
+#spring_k = (spring_damping**2) / (4 * mass)
+
+spring_k = 1
+
+# Reference duration of one spring kick
+springKickDt = 5e-6
+
+
 min_elongation_percent = 80             # freeze threshold (compression)
-max_elongation_percent = 1000               # break threshold (expansion)
+max_elongation_percent = float('inf')              # break threshold (expansion)
 
 print(f"[SPRINGS] spring_k = {spring_k:.6e}")
 
@@ -185,7 +237,7 @@ for idx, sid in enumerate(sphereIDs):
         springsList[spring_id_counter] = (pair[0], pair[1], L0)
         spring_id_counter += 1
 
-print(f"[SPRINGS] Created {len(springsList)} springs.")
+#print(f"[SPRINGS] Created {len(springsList)} springs.")
 
 degree = {sid: 0 for sid in sphereIDs}
 
@@ -193,7 +245,7 @@ for spring_id, (i, j, L0) in springsList.items():
     degree[i] += 1
     degree[j] += 1
 
-print("\n[SPRING DEGREE CHECK]")
+""" print("\n[SPRING DEGREE CHECK]")
 for sid in sorted(degree):
     print(f"sphere {sid}: {degree[sid]} springs")
 
@@ -202,7 +254,7 @@ print(
     min(degree.values()),
     "max =",
     max(degree.values())
-)
+) """
 
 # save initial springs list 
 
@@ -250,24 +302,24 @@ if mp.rank != 0:
 
 
 
-def apply_spring_forces():
-    """
-    Gather sphere positions/lambdaDot from all MPI ranks.
-    Rank 0 computes ALL spring forces using the global particle data.
-    Then forces are broadcast back to all ranks.
-    """
+#---------
+cachedSpringForces = []
 
-    global springsList, broken_springs, springsLambda
+def update_spring_forces():
 
-    if O.iter == 2:
-        print("[CHECK] apply_spring_forces is running on rank", mp.rank)
+    global springsList
+    global broken_springs
+    global springsLambda
+    global cachedSpringForces
 
-    # ---------------------------------------------------------
-    # 1. Each rank sends all spheres that it can currently see
-    # ---------------------------------------------------------
+    # =========================================================
+    # 1. Collect particle positions + lambdaDot
+    # =========================================================
+
     local_particles = []
 
     for b in O.bodies:
+
         if isinstance(b.shape, Sphere):
 
             p = b.state.pos
@@ -278,45 +330,82 @@ def apply_spring_forces():
                     float(p[0]),
                     float(p[1]),
                     float(p[2]),
-                    float(b.state.lambdaDot)
+                    float(b.state.lambdaDot),
+                    int(b.subdomain),
+                    int(mp.rank)
                 )
             )
 
-    # Gather all sphere data on rank 0
-    all_particles = mp.comm.gather(local_particles, root=0)
+
+    all_particles = mp.comm.gather(
+        local_particles,
+        root=0
+    )
 
 
-    # ---------------------------------------------------------
-    # 2. Rank 0 reconstructs global particle information
-    #    and calculates ALL springs
-    # ---------------------------------------------------------
+    # =========================================================
+    # 2. Rank 0 calculates spring state + force
+    # =========================================================
+
     if mp.rank == 0:
 
         particle_data = {}
+        fallback_data = {}
 
         for rank_particles in all_particles:
-            for sid, x, y, z, lambdaDot in rank_particles:
 
-                # A sphere can appear on more than one rank because
-                # of MPI ghost copies. Keep only one copy.
-                if sid not in particle_data:
-                    particle_data[sid] = (
-                        Vector3(x, y, z),
-                        lambdaDot
-                    )
+            for sid, x, y, z, lambdaDot, owner_rank, source_rank in rank_particles:
+
+                data = (
+                    Vector3(x, y, z),
+                    lambdaDot
+                )
+
+                # keep a fallback copy
+                if sid not in fallback_data:
+                    fallback_data[sid] = data
+
+                # authoritative copy = copy on particle owner rank
+                if owner_rank == source_rank:
+                    particle_data[sid] = data
 
 
-        force_map = defaultdict(lambda: Vector3(0, 0, 0))
+        # fallback only if no owner copy was found
+        for sid in sphereIDs:
+
+            if sid not in particle_data and sid in fallback_data:
+                particle_data[sid] = fallback_data[sid]
+
+        """lambdaDot_values = [
+            data[1]
+            for data in particle_data.values()
+        ]
+
+         if lambdaDot_values:
+
+            print(
+                "[LAMBDADOT CHECK]",
+                "min =", min(lambdaDot_values),
+                "max =", max(lambdaDot_values),
+                "mean =", sum(lambdaDot_values) / len(lambdaDot_values)
+            )      """   
+
+
+        # always create a zero force for every particle
+        force_map = {
+            sid: Vector3(0, 0, 0)
+            for sid in sphereIDs
+        }
+
         to_remove = []
 
-        missing_springs = 0
+        for spring_id, (i, j, L0) in list(springsList.items()):
 
-
-        for spring_id, (i, j, L0) in springsList.items():
-
-            # Both particles should now be available globally
-            if i not in particle_data or j not in particle_data:
-                missing_springs += 1
+            if (
+                i not in particle_data
+                or
+                j not in particle_data
+            ):
                 continue
 
 
@@ -324,31 +413,41 @@ def apply_spring_forces():
             pj, lambdaDot_j = particle_data[j]
 
 
-            # -------------------------------------------------
-            # Geometry
-            # -------------------------------------------------
+            # ---------------------------------------------
+            # current geometry
+            # ---------------------------------------------
+
             delta = pj - pi
             L_current = delta.norm()
 
-            if L_current == 0:
+            if L_current <= 0:
                 continue
 
             direction = delta.normalized()
 
 
-            # -------------------------------------------------
-            # FREEZE under strong compression
-            # -------------------------------------------------
-            min_L = (min_elongation_percent / 100.0) * L0
+            # ---------------------------------------------
+            # compression limit
+            # ---------------------------------------------
+
+            min_L = (
+                min_elongation_percent
+                / 100.0
+            ) * L0
 
             if L_current <= min_L:
                 continue
 
 
-            # -------------------------------------------------
-            # BREAK under excessive extension
-            # -------------------------------------------------
-            elong_pct = ((L_current - L0) / L0) * 100.0
+            # ---------------------------------------------
+            # breaking
+            # ---------------------------------------------
+
+            elong_pct = (
+                (L_current - L0)
+                / L0
+            ) * 100.0
+
 
             if elong_pct > max_elongation_percent:
 
@@ -366,25 +465,21 @@ def apply_spring_forces():
                 )
 
                 to_remove.append(spring_id)
+
                 continue
 
 
-            # -------------------------------------------------
-            # Dynamic lambda
-            # -------------------------------------------------
-            lambdaDot_avg = (0.5 * (lambdaDot_i + lambdaDot_j))
-            lambdaDot_avg *= 1
+            # ---------------------------------------------
+            # lambda update
+            # ---------------------------------------------
 
+            lambdaDot_avg = (0.5 * (lambdaDot_i + lambdaDot_j))
 
             lambda_prev = springsLambda[spring_id]
 
-            lambda_new = (
-                lambda_prev
-                + O.dt * lambdaDot_avg
-            )
+            lambda_new = (lambda_prev + OFdeltaT * lambdaDot_avg)
+            #lambda_new = (lambda_prev + O.dt * lambdaDot_avg)
 
-
-            # clamp
             lambda_new = max(
                 0.1,
                 min(lambda_new, 2.0)
@@ -393,47 +488,92 @@ def apply_spring_forces():
             springsLambda[spring_id] = lambda_new
 
 
-            # -------------------------------------------------
-            # Target spring length
-            # -------------------------------------------------
-            target_L = L0 * lambda_new
+            # ---------------------------------------------
+            # spring force
+            # ---------------------------------------------
 
+            target_L = (
+                L0
+                * lambda_new
+            )
 
-            # -------------------------------------------------
-            # Hooke force
-            # -------------------------------------------------
-            lambda_eff = L_current - target_L
+            spring_extension = (
+                L_current
+                - target_L
+            )
+
+            
+            springForceScale = springKickDt / O.dt
 
             Fvec = (
                 spring_k
-                * lambda_eff
+                * spring_extension
                 * direction
+                * springForceScale
             )
 
 
-            # Equal and opposite forces
             force_map[i] += Fvec
             force_map[j] -= Fvec
 
 
-        # convert Vector3 to ordinary tuples for MPI
-        force_data = [
-            (
-                sid,
-                float(F[0]),
-                float(F[1]),
-                float(F[2])
-            )
-            for sid, F in force_map.items()
+        # =========================================================
+        # debug lambda AFTER all springs were updated
+        # =========================================================
+
+        """ lambda_values = list(springsLambda.values())
+
+        if lambda_values:
+
+            print(
+                "[SPRING LAMBDA]",
+                "min =", min(lambda_values),
+                "max =", max(lambda_values)
+            ) """
+
+
+        
+
+
+        # remove broken springs
+        for spring_id in to_remove:
+
+            if spring_id in springsList:
+                del springsList[spring_id]
+
+            if spring_id in springsLambda:
+                del springsLambda[spring_id]
+
+
+        """ force_magnitudes = [
+            F.norm()
+            for F in force_map.values()
         ]
 
+        if force_magnitudes:
 
-        if missing_springs > 0:
             print(
-                "[SPRING WARNING]",
-                missing_springs,
-                "springs have missing global particle data"
+                "[SPRING FORCE]",
+                "max =", max(force_magnitudes),
+                "mean =", sum(force_magnitudes) / len(force_magnitudes)
+            ) """
+
+        # Convert to MPI-safe data
+        force_data = []
+
+        for sid in sphereIDs:
+
+            F = force_map[sid]
+
+            force_data.append(
+                (
+                    sid,
+                    float(F[0]),
+                    float(F[1]),
+                    float(F[2])
+                )
             )
+
 
     else:
 
@@ -441,46 +581,107 @@ def apply_spring_forces():
         to_remove = None
 
 
-    # ---------------------------------------------------------
-    # 3. Broadcast results to every MPI rank
-    # ---------------------------------------------------------
-    force_data = mp.comm.bcast(force_data, root=0)
-    to_remove = mp.comm.bcast(to_remove, root=0)
+    # =========================================================
+    # 3. Broadcast
+    # =========================================================
 
-    # Keep lambda values identical on all MPI ranks
+    force_data = mp.comm.bcast(
+        force_data,
+        root=0
+    )
+
+
+    to_remove = mp.comm.bcast(
+        to_remove,
+        root=0
+    )
+
+
     springsLambda = mp.comm.bcast(
         springsLambda if mp.rank == 0 else None,
         root=0
     )
 
 
-    # ---------------------------------------------------------
-    # 4. Apply calculated forces wherever that sphere exists
-    # ---------------------------------------------------------
+    # remove broken springs on other ranks too
+    if mp.rank != 0:
+
+        for spring_id in to_remove:
+
+            if spring_id in springsList:
+                del springsList[spring_id]
+
+            if spring_id in springsLambda:
+                del springsLambda[spring_id]
+
+
+    # =========================================================
+    # 4. Cache forces
+    # =========================================================
+
+    #cachedSpringForces = force_data
+
     for sid, fx, fy, fz in force_data:
 
-        if sid < len(O.bodies):
+        if sid >= len(O.bodies):
+            continue
 
-            b = O.bodies[sid]
+        b = O.bodies[sid]
 
-            if b is not None and isinstance(b.shape, Sphere):
+        if b is None:
+            continue
 
-                O.forces.addF(
-                    sid,
-                    Vector3(fx, fy, fz)
-                )
+        if not isinstance(b.shape, Sphere):
+            continue
+
+        O.forces.addF(
+            sid,
+            Vector3(
+                fx,
+                fy,
+                fz
+            )
+        )
 
 
-    
-    # 5. Remove broken springs consistently from ALL ranks
-    # ---------------------------------------------------------
-    for spring_id in to_remove:
+    if mp.rank == 0:
 
-        if spring_id in springsList:
-            del springsList[spring_id]
+        print(
+            "[SPRING UPDATE]",
+            "time =", O.time,
+            "iter =", O.iter,
+            "activeSprings =", len(springsList)
+        )
 
-        if spring_id in springsLambda:
-            del springsLambda[spring_id]
+
+
+def apply_cached_spring_forces():
+
+    global cachedSpringForces
+
+    for sid, fx, fy, fz in cachedSpringForces:
+
+        if sid >= len(O.bodies):
+            continue
+
+        b = O.bodies[sid]
+
+        if b is None:
+            continue
+
+        if not isinstance(b.shape, Sphere):
+            continue
+
+        O.forces.addF(
+            sid,
+            Vector3(
+                fx,
+                fy,
+                fz
+            )
+        )
+
+
 
 #----------
 
@@ -578,7 +779,9 @@ def export_springs():
                     b.id,
                     float(p[0]),
                     float(p[1]),
-                    float(p[2])
+                    float(p[2]),
+                    int(b.subdomain),
+                    int(mp.rank)
                 )
             )
 
@@ -595,21 +798,29 @@ def export_springs():
     # ---------------------------------------------------------
     if mp.rank == 0:
 
+        
+
         global_positions = {}
+        fallback_positions = {}
 
         for rank_particles in all_particles:
 
-            for sid, x, y, z in rank_particles:
+            for sid, x, y, z, owner_rank, source_rank in rank_particles:
 
-                # Same particle may exist as a ghost on several ranks.
-                # Keep only one copy.
-                if sid not in global_positions:
+                pos = Vector3(x, y, z)
 
-                    global_positions[sid] = Vector3(
-                        x,
-                        y,
-                        z
-                    )
+                if sid not in fallback_positions:
+                    fallback_positions[sid] = pos
+
+                # use the REAL owner copy
+                if owner_rank == source_rank:
+                    global_positions[sid] = pos
+
+
+        for sid in sphereIDs:
+
+            if sid not in global_positions and sid in fallback_positions:
+                global_positions[sid] = fallback_positions[sid]
 
 
         # -----------------------------------------------------
@@ -993,12 +1204,12 @@ def gatherHydroFT():
             for i, vals in lst:
                 merged[i] = vals
 
-        # Print first 5
+        """ # Print first 5
         for k in sorted(merged)[:3]:
             Fx, Fy, Fz, Tx, Ty, Tz, lam = merged[k]
             print(f"[Forces+lambdaDot (3 points only)] id {k}: F=({Fx:.3e},{Fy:.3e},{Fz:.3e}) "
                   f"T=({Tx:.3e},{Ty:.3e},{Tz:.3e}) lambdaDot={lam:.7e}")
-
+ """
 
 def printlambdaDotNew():      
 	for b in O.bodies:
@@ -1015,26 +1226,28 @@ def printlambdaDotNew():
 O.engines = [
         ForceResetter(),
         InsertionSortCollider([Bo1_Sphere_Aabb(), Bo1_Box_Aabb()], label='collider', allowBiggerThanPeriod=True),
-
-        #InteractionLoop([Ig2_Sphere_Sphere_ScGeom(), Ig2_Box_Sphere_ScGeom()], [Ip2_FrictMat_FrictMat_FrictPhys()], [Law2_ScGeom_FrictPhys_CundallStrack()],label='InteractionLoop'),
-        InteractionLoop([Ig2_Box_Sphere_ScGeom()], [Ip2_FrictMat_FrictMat_FrictPhys()], [Law2_ScGeom_FrictPhys_CundallStrack()],
-                label='InteractionLoop'),
+        #InteractionLoop([Ig2_Box_Sphere_ScGeom()], [Ip2_FrictMat_FrictMat_FrictPhys()], [Law2_ScGeom_FrictPhys_CundallStrack()],label='InteractionLoop'), 
 
         #GlobalStiffnessTimeStepper(timestepSafetyCoefficient=0.7, defaultDt=yadeDtFixed, timeStepUpdateInterval=20, parallelMode=True, label="ts"),
         fluidCoupling,  #to be called after timestepper
         
         
-        PyRunner(command='apply_spring_forces()', iterPeriod=20, firstIterRun=1),
+        #PyRunner(command='apply_spring_forces()', iterPeriod=20, firstIterRun=1),
+        PyRunner(
+            command='update_spring_forces()',
+            iterPeriod=stepsPerOF,
+            firstIterRun=1,
+            label='springUpdater'
+        ),
+
+      
+
         NewtonIntegrator(damping=0.99, label='newton', gravity=(0, 0.0, 0)),
         PyRunner(command="export_springs()", iterPeriod=timeRatio), # i works!
         PyRunner(command="export_spheres()", iterPeriod=timeRatio),
 
-        #PyRunner(command='printlambdaDotNew()', iterPeriod=1), #it works! prints a list of sphereID and lambdaDot 
-        #VTKRecorder(fileName='spheres/vtk-', recorders=['spheres'], parallelMode=True, virtPeriod=1e-3),
-        #VTKRecorder(fileName='spheres/vtk-', recorders=['spheres'], parallelMode=True, iterPeriod=timeRatio),
-
-        PyRunner(iterPeriod=timeRatio, command='gatherHydroFT()'), # it works! prints a list of hydrodynamic forces + lambdaDot sent from OF
-        #PyRunner(command='savePos()', iterPeriod=5000) 
+ 
+        #PyRunner(iterPeriod=timeRatio, command='gatherHydroFT()'), # it works! prints a list of hydrodynamic forces + lambdaDot sent from OF
 
         PyRunner(command="printAndSaveDtInfo()", iterPeriod=timeRatio, firstIterRun=1)
 
@@ -1051,8 +1264,8 @@ mp.USE_CPP_INTERS = False
 mp.ERASE_REMOTE = True
 mp.ERASE_REMOTE_MASTER = True
 
-mp.REALLOC_FREQUENCY = 1000
-mp.REALLOCATE_FREQUENCY = 1000
+mp.REALLOC_FREQUENCY = 10000
+mp.REALLOCATE_FREQUENCY = 10000
 
 mp.fluidBodies = sphereIDs
 mp.DOMAIN_DECOMPOSITION = True
@@ -1060,6 +1273,9 @@ mp.DOMAIN_DECOMPOSITION = True
 # ---------------------------------------------------------
 # Protect OpenFOAM FluidDomainBbox bodies from mpy eraseRemote
 # ---------------------------------------------------------
+
+fluidBodySet = set(sphereIDs)
+
 
 def eraseRemote_keepFluidDomains():
 
@@ -1070,26 +1286,46 @@ def eraseRemote_keepFluidDomains():
             if b is None:
                 continue
 
-            # FoamCoupling keeps IDs of these bodies.
-            # Never remove them from the YADE BodyContainer.
+
+            # -------------------------------------------------
+            # NEVER erase OpenFOAM domain boxes
+            # -------------------------------------------------
             if isinstance(b.shape, FluidDomainBbox):
                 continue
 
+
+            # -------------------------------------------------
+            # NEVER erase particles coupled to OpenFOAM
+            # FoamCoupling keeps these IDs internally
+            # -------------------------------------------------
+            if b.id in fluidBodySet:
+                continue
+
+
+            # -------------------------------------------------
+            # Normal YADE mpy erase behaviour
+            # -------------------------------------------------
             if not b.bounded and b.subdomain != mp.rank:
 
                 connected = False
 
-                # preserve original mpy behaviour for GridNode
+
                 if isinstance(b.shape, GridNode):
+
                     for f in b.shape.getPFacets():
+
                         if f.bounded:
                             connected = True
 
+
                     for c in b.shape.getConnections():
+
                         if c.bounded:
                             connected = True
 
+
                 if not connected:
+
                     O.bodies.erase(b.id)
 
 

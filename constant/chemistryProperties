@@ -78,50 +78,88 @@ species
 
 );
 
+
+
 solidReactions
 (
-    // moisture (keep yours)
-   /* irreversibleSolidArrheniusHeterogeneousReaction
+    // Moisture removal
+    irreversibleSolidArrheniusHeterogeneousReaction
     moist = H2O
-    (3.0e6  6.000e3  300  0.0e0  1) //* 60
-*/
+    (200  4.10e3  300  0.0e0  1)
 
-    // Stage I -> II
+
+    // Raw -> Yellow
+    // 1.5% mass released as early volatile
     irreversibleSolidArrheniusHeterogeneousReaction
-    //rawToYellow = raw
-    raw = 0.99 yellow + 0.009 Vearly + 0.001 Color
-    (1.76e5   7e3  300  0.0e0  1)
+    raw = 0.984 yellow + 0.015 Vearly + 0.001 Color
+    (1.10  2.15e3  300  0.0e0  1)
 
-    // Stage II -> III (crack proxy stage)
+
+    // Yellow -> Crack
+    // 4% mass released as early volatile
     irreversibleSolidArrheniusHeterogeneousReaction
-    //yellowToCrack = yellow
-    yellow = 0.99 crack + 0.01 Vearly
-    (0.15e8  0.9e4  300  0.0e0  1)
+    yellow = 0.96 crack + 0.04 Vearly
+    (6.39  3.15e3  300  0.0e0  1)
 
-    // Stage III -> IV (development; late volatiles + color grows faster)
+
+    // Crack -> Dev
+    // 7% mass released as late volatile
     irreversibleSolidArrheniusHeterogeneousReaction
-    //crackToDev = crack
-    //crack = 0.96 dev + 0.03 Vlate + 0.01 Color
-    //(6.0e13  1.850e4  300  0.0e0  1)
+    crack = 0.93 dev + 0.07 Vlate
+    (2.21e5  9.49e3  300  0.0e0  1)
 
-    crack = 0.999 dev + 0.001 Vlate
-    (0.03e13  1.4e4  300  0.0e0  1)
 
-    // Stage IV -> V (dark/burnt onset)
+    // Dev -> Dark
+    // 7.5% additional volatile loss
     irreversibleSolidArrheniusHeterogeneousReaction
-    //devToDark = dev
-    dev = 0.95 dark + 0.02 Color + 0.03 Burnt
-    (0.2e13  1.5e4  300  0.0e0  1)
+    dev = 0.875 dark + 0.075 Vlate + 0.02 Color + 0.03 Burnt
+    (5.17e9  1.50e4  300  0.0e0  1)
 
-    // Peak-shaping: consume early volatiles late (gives Vearly an early peak)
-    // If your solver allows species-only reactions:
+
+    // Early volatile -> Late volatile
     irreversibleSolidArrheniusHeterogeneousReaction
-    //VearlyToVlate = Vearly
     Vearly = 1.0 Vlate
-    (0.15e9  1.2e4  300  0.0e0  1)
-
+    (0.113  3.47e3  300  0.0e0  1)
 );
 
+/*
+solidReactions
+(
+
+
+    // Raw -> Yellow
+    irreversibleSolidArrheniusHeterogeneousReaction
+    raw = 0.99 yellow + 0.009 Vearly + 0.001 Color
+    (1.10  2.15e3  300  0.0e0  1)
+
+
+    // Yellow -> Crack
+    irreversibleSolidArrheniusHeterogeneousReaction
+    yellow = 0.99 crack + 0.01 Vearly
+    (6.39  3.15e3  300  0.0e0  1)
+
+
+    // Crack -> Dev
+    irreversibleSolidArrheniusHeterogeneousReaction
+    crack = 0.999 dev + 0.001 Vlate
+    (2.21e5  9.49e3  300  0.0e0  1)
+
+
+    // Dev -> Dark
+    irreversibleSolidArrheniusHeterogeneousReaction
+    dev = 0.95 dark + 0.02 Color + 0.03 Burnt
+    (5.17e9  1.50e4  300  0.0e0  1)
+
+
+    // Vearly -> Vlate
+    irreversibleSolidArrheniusHeterogeneousReaction
+    Vearly = 1.0 Vlate
+    (0.113  3.47e3  300  0.0e0  1)
+
+    
+
+);
+*/
 
 // ************************************************************************* //
 

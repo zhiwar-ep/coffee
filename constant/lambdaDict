@@ -65,7 +65,7 @@ lambdaMode exactDifferential;
 //
 // Negative value reverses this behaviour.
 
-dlambdaOverDTs 0.00001;
+dlambdaOverDTs 5.8e-4; //0.0001;
 
 
 // -------------------- Chemistry contribution --------------------
