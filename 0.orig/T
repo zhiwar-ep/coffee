@@ -17,15 +17,15 @@ FoamFile
 
 dimensions      [0 0 0 1 0 0 0];
 
-internalField   uniform 530;
+internalField   uniform 390;
 
 boundaryField
 {
 
     wall
     {
-        type            fixedValue;
-        value           uniform 530;
+        type            zeroGradient;
+        
     }
     inlet
     {

@@ -17,10 +17,10 @@ FoamFile
 
 radiation       on;  //era on
 
-heterogeneousRadiationModel  heterogeneousP1;
+heterogeneousRadiationModel  heterogeneousMeanTemp; //heterogeneousP1;
 
 // Number of flow iterations per radiation iteration
-solverFreq 5;
+//solverFreq 5;
 
 heterogeneousAbsorptionEmissionModel heterogeneousConstantAbsorptionEmission;
 
@@ -32,9 +32,9 @@ heterogeneousConstantAbsorptionEmissionCoeffs
 {
     a               a  [ 0 -1  0 0 0 0 0 ] 0;   //era 20
     as              as [ 0 -1  0 0 0 0 0 ] 0;
-    borderAs        borderAs [ 0 -1  0 0 0 0 0 ] 180;
+    borderAs        borderAs [ 0 -1  0 0 0 0 0 ] 180; // absorption co
     E               E  [ 1 -1 -3 0 0 0 0 ] 0.0;
-    borderL         borderL  [ 0 1 0 0 0 0 0 ] 1.5e-3;
+    borderL         borderL  [ 0 1 0 0 0 0 0 ] 1.5e-3; // termal peneteration lenght scale 
 }
 
 scatterModel    constantScatter;

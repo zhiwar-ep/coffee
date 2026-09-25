@@ -10,7 +10,7 @@ comm = mp.comm_slave
 
 #print("YADE: current working directory:", os.getcwd())
 
-writeInterval = 0.1   # seconds ( = OpenFOAM writeInterval controlDict )
+writeInterval = 1   # seconds ( = OpenFOAM writeInterval controlDict )
 endTime = 900.0
 
 
@@ -22,7 +22,7 @@ sphere_frame_number = 0
 OFdeltaT = 0.01
 
 # YADE mechanical sub-step
-yadeDtFixed = 50e-6
+yadeDtFixed = 100e-6
 
 O.dynDt = False
 O.dt = yadeDtFixed
