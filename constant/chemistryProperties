@@ -92,76 +92,34 @@ solidReactions
     // 1.5% mass released as early volatile
     irreversibleSolidArrheniusHeterogeneousReaction
     raw = 0.984 yellow + 0.015 Vearly + 0.001 Color
-    (1.10  2.15e3  300  0.0e0  1)
+    (0.10894  924.5  300  0.0e0  1)
 
 
     // Yellow -> Crack
     // 4% mass released as early volatile
     irreversibleSolidArrheniusHeterogeneousReaction
     yellow = 0.96 crack + 0.04 Vearly
-    (6.39  3.15e3  300  0.0e0  1)
+    (0.21589  1354.5  300  0.0e0  1)
 
 
     // Crack -> Dev
-    // 7% mass released as late volatile
+    // Delay late release: preserve crack mass until Dev -> Dark
     irreversibleSolidArrheniusHeterogeneousReaction
-    crack = 0.93 dev + 0.07 Vlate
-    (2.21e5  9.49e3  300  0.0e0  1)
+    crack = 0.995 dev + 0.005 Vlate
+    (8.1637  4080.7  300  0.0e0  1)
 
 
     // Dev -> Dark
-    // 7.5% additional volatile loss
+    // Late release mainly in Dev -> Dark; net downstream yields conserved
     irreversibleSolidArrheniusHeterogeneousReaction
-    dev = 0.875 dark + 0.075 Vlate + 0.02 Color + 0.03 Burnt
-    (5.17e9  1.50e4  300  0.0e0  1)
+    dev = 0.81784 dark + 0.13543 Vlate + 0.01869 Color + 0.02804 Burnt
+    (509.82  6450  300  0.0e0  1)
 
 
     // Early volatile -> Late volatile
     irreversibleSolidArrheniusHeterogeneousReaction
     Vearly = 1.0 Vlate
-    (0.113  3.47e3  300  0.0e0  1)
+    (0.0027061  1492.1  300  0.0e0  1)
 );
-
-/*
-solidReactions
-(
-
-
-    // Raw -> Yellow
-    irreversibleSolidArrheniusHeterogeneousReaction
-    raw = 0.99 yellow + 0.009 Vearly + 0.001 Color
-    (1.10  2.15e3  300  0.0e0  1)
-
-
-    // Yellow -> Crack
-    irreversibleSolidArrheniusHeterogeneousReaction
-    yellow = 0.99 crack + 0.01 Vearly
-    (6.39  3.15e3  300  0.0e0  1)
-
-
-    // Crack -> Dev
-    irreversibleSolidArrheniusHeterogeneousReaction
-    crack = 0.999 dev + 0.001 Vlate
-    (2.21e5  9.49e3  300  0.0e0  1)
-
-
-    // Dev -> Dark
-    irreversibleSolidArrheniusHeterogeneousReaction
-    dev = 0.95 dark + 0.02 Color + 0.03 Burnt
-    (5.17e9  1.50e4  300  0.0e0  1)
-
-
-    // Vearly -> Vlate
-    irreversibleSolidArrheniusHeterogeneousReaction
-    Vearly = 1.0 Vlate
-    (0.113  3.47e3  300  0.0e0  1)
-
-    
-
-);
-*/
 
 // ************************************************************************* //
-
-
-
