@@ -80,10 +80,6 @@ maxvalZ = 0.01
 hx, hy, hz = maxvalX/2., maxvalY/2., maxvalZ/2.
 
 
-# -----------------------
-# Coffee bean geometry
-# -----------------------
-
 L = 0.009
 W = 0.006
 T = 0.004
@@ -116,9 +112,9 @@ def insideCoffeeBean(pt):
 
 
 
-particle_radius = 1e-5      # very small radius spheres
-placement_radius = 0.0001 # for placement of spheres assume larger spheres to prevent coagulation of spheres in one place
-reference_radius = 0.00075  # radius of a more stable spheres
+particle_radius = 1e-5      
+placement_radius = 0.0001 
+reference_radius = 0.00075  
 #effective_mass = (density * (4.0 / 3.0) * math.pi * reference_radius**3)
 
 #effective_inertia = ((2.0 / 5.0) * effective_mass * reference_radius**2)
@@ -193,7 +189,7 @@ for b in O.bodies:
 # spring creation 
 #----------------
 #spring_damping = 1.0
-#mass = 0.0002                          # same as wood sample
+#mass = 0.0002                          
 #spring_k = (spring_damping**2) / (4 * mass)
 
 spring_k = 1
@@ -202,13 +198,13 @@ spring_k = 1
 springKickDt = 5e-6
 
 
-min_elongation_percent = 80             # freeze threshold (compression)
-max_elongation_percent = float('inf')              # break threshold (expansion)
+min_elongation_percent = 80             
+max_elongation_percent = float('inf')             
 
 print(f"[SPRINGS] spring_k = {spring_k:.6e}")
 
 n_neighbors = 6
-springsList = {}                 # springID : (i,j,L0)
+springsList = {}               
 broken_springs = []
 existing_pairs = set()
 spring_id_counter = 0
@@ -225,7 +221,7 @@ tree = cKDTree(positions)
 for idx, sid in enumerate(sphereIDs):
     dists, idxs = tree.query(positions[idx], k=n_neighbors+1)  # +1 for itself
 
-    for k in range(1, len(idxs)):      # skip itself
+    for k in range(1, len(idxs)):      
         sid2 = sphereIDs[idxs[k]]
         pair = tuple(sorted((sid, sid2)))
         if pair in existing_pairs:
@@ -245,18 +241,8 @@ for spring_id, (i, j, L0) in springsList.items():
     degree[i] += 1
     degree[j] += 1
 
-""" print("\n[SPRING DEGREE CHECK]")
-for sid in sorted(degree):
-    print(f"sphere {sid}: {degree[sid]} springs")
 
-print(
-    "[SPRING DEGREE] min =",
-    min(degree.values()),
-    "max =",
-    max(degree.values())
-) """
 
-# save initial springs list 
 
 os.makedirs("springs", exist_ok=True)
 with open("springs/springsList.txt", "w") as f:
@@ -266,18 +252,16 @@ with open("springs/springsList.txt", "w") as f:
 
 
 
-# send springsList to all MPI RANKS ( broadcast) 
-# ----------------------------------------
+
 
 if mp.rank == 0:
     springs_serial = [(sid, data[0], data[1], data[2]) for sid, data in springsList.items()]
 else:
     springs_serial = None
 
-# broadcast to all ranks
+
 springs_serial = mp.comm.bcast(springs_serial, root=0)
 
-# reconstruct springsList on ALL ranks
 springsList = { sid : (i, j, L0) for (sid, i, j, L0) in springs_serial }
 
 if mp.rank != 0:
@@ -287,7 +271,7 @@ if mp.rank != 0:
 
 springsLambda = { sid: 1.0 for sid in springsList }  # per-spring lambda storage
 
-# broadcast springsLambda to all MPI ranks
+
 if mp.rank == 0:
     springsLambda_serial = [(sid, springsLambda[sid]) for sid in springsLambda]
 else:
@@ -312,9 +296,6 @@ def update_spring_forces():
     global springsLambda
     global cachedSpringForces
 
-    # =========================================================
-    # 1. Collect particle positions + lambdaDot
-    # =========================================================
 
     local_particles = []
 
@@ -343,9 +324,6 @@ def update_spring_forces():
     )
 
 
-    # =========================================================
-    # 2. Rank 0 calculates spring state + force
-    # =========================================================
 
     if mp.rank == 0:
 
@@ -370,28 +348,15 @@ def update_spring_forces():
                     particle_data[sid] = data
 
 
-        # fallback only if no owner copy was found
         for sid in sphereIDs:
 
             if sid not in particle_data and sid in fallback_data:
                 particle_data[sid] = fallback_data[sid]
 
-        """lambdaDot_values = [
-            data[1]
-            for data in particle_data.values()
-        ]
-
-         if lambdaDot_values:
-
-            print(
-                "[LAMBDADOT CHECK]",
-                "min =", min(lambdaDot_values),
-                "max =", max(lambdaDot_values),
-                "mean =", sum(lambdaDot_values) / len(lambdaDot_values)
-            )      """   
+       
 
 
-        # always create a zero force for every particle
+      
         force_map = {
             sid: Vector3(0, 0, 0)
             for sid in sphereIDs
@@ -413,9 +378,6 @@ def update_spring_forces():
             pj, lambdaDot_j = particle_data[j]
 
 
-            # ---------------------------------------------
-            # current geometry
-            # ---------------------------------------------
 
             delta = pj - pi
             L_current = delta.norm()
@@ -426,9 +388,7 @@ def update_spring_forces():
             direction = delta.normalized()
 
 
-            # ---------------------------------------------
-            # compression limit
-            # ---------------------------------------------
+    
 
             min_L = (
                 min_elongation_percent
@@ -469,9 +429,6 @@ def update_spring_forces():
                 continue
 
 
-            # ---------------------------------------------
-            # lambda update
-            # ---------------------------------------------
 
             lambdaDot_avg = (0.5 * (lambdaDot_i + lambdaDot_j))
 
@@ -488,9 +445,7 @@ def update_spring_forces():
             springsLambda[spring_id] = lambda_new
 
 
-            # ---------------------------------------------
-            # spring force
-            # ---------------------------------------------
+     
 
             target_L = (
                 L0
@@ -517,9 +472,6 @@ def update_spring_forces():
             force_map[j] -= Fvec
 
 
-        # =========================================================
-        # debug lambda AFTER all springs were updated
-        # =========================================================
 
         """ lambda_values = list(springsLambda.values())
 
@@ -545,18 +497,6 @@ def update_spring_forces():
                 del springsLambda[spring_id]
 
 
-        """ force_magnitudes = [
-            F.norm()
-            for F in force_map.values()
-        ]
-
-        if force_magnitudes:
-
-            print(
-                "[SPRING FORCE]",
-                "max =", max(force_magnitudes),
-                "mean =", sum(force_magnitudes) / len(force_magnitudes)
-            ) """
 
         # Convert to MPI-safe data
         force_data = []
@@ -581,9 +521,6 @@ def update_spring_forces():
         to_remove = None
 
 
-    # =========================================================
-    # 3. Broadcast
-    # =========================================================
 
     force_data = mp.comm.bcast(
         force_data,
@@ -615,9 +552,7 @@ def update_spring_forces():
                 del springsLambda[spring_id]
 
 
-    # =========================================================
-    # 4. Cache forces
-    # =========================================================
+
 
     #cachedSpringForces = force_data
 
@@ -738,7 +673,6 @@ export.text("spheres/spheres_0.txt")
 #export.VTKExporter("spheres/vtk-0").exportSpheres()
 
 
-# to list all vtk files in a single pvd file with time stamps. in paraview only open this pvd file not all vtk files.
 
 pvd_spheres = []   # list of (time, filename)
 pvd_springs = []
@@ -754,8 +688,7 @@ def write_pvd(pvd_path, entries):
         f.write('</VTKFile>\n')
 
 
-# Export springs as VTK ( not VTKRecorder )
-# ---------------------
+
 def export_springs():
 
     global spring_frame_number
@@ -763,9 +696,7 @@ def export_springs():
 
     os.makedirs("springs", exist_ok=True)
 
-    # ---------------------------------------------------------
-    # 1. Each MPI rank sends all sphere positions it can see
-    # ---------------------------------------------------------
+
     local_particles = []
 
     for b in O.bodies:
@@ -793,9 +724,6 @@ def export_springs():
     )
 
 
-    # ---------------------------------------------------------
-    # 2. Rank 0 reconstructs GLOBAL sphere positions
-    # ---------------------------------------------------------
     if mp.rank == 0:
 
         
@@ -823,9 +751,7 @@ def export_springs():
                 global_positions[sid] = fallback_positions[sid]
 
 
-        # -----------------------------------------------------
-        # 3. Build ALL springs using global sphere positions
-        # -----------------------------------------------------
+   
         pts = []
         exported_spring_ids = []
         missing_springs = []
@@ -859,9 +785,6 @@ def export_springs():
         num_lines = len(exported_spring_ids)
 
 
-        # -----------------------------------------------------
-        # 4. Write VTP
-        # -----------------------------------------------------
         file_path = (
             f"springs/springs_"
             f"{spring_frame_number:.1f}.vtp"
@@ -887,8 +810,6 @@ def export_springs():
             )
 
 
-            # ---------------------------------------------
-            # Points
             # ---------------------------------------------
             f.write('      <Points>\n')
 
@@ -966,8 +887,7 @@ def export_springs():
             f.write('      </Lines>\n')
 
 
-            # ---------------------------------------------
-            # Cell data
+
             # ---------------------------------------------
             f.write(
                 '      <CellData '
@@ -1002,8 +922,7 @@ def export_springs():
             f.write('</VTKFile>\n')
 
 
-        # -----------------------------------------------------
-        # 5. Check that ALL springs were exported
+
         # -----------------------------------------------------
         print(
             f"[VTK SPRINGS] "
@@ -1036,8 +955,7 @@ def export_springs():
             )
 
 
-        # -----------------------------------------------------
-        # 6. Update PVD
+
         # -----------------------------------------------------
         vtk_name = os.path.basename(
             file_path
