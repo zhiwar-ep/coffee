@@ -100,13 +100,6 @@ functions
             const scalar criticalPorosity = 0.98;
 
 
-            // =====================================================
-            // FIXED INITIAL REGION
-            //
-            // Cells where initial porosityF < criticalPorosity
-            // remain fixed for the entire simulation.
-            // =====================================================
-
             static bool initialRegionInitialized = false;
             static DynamicList<label> initialRegionCells;
 
@@ -138,11 +131,6 @@ functions
             }
 
 
-            // =====================================================
-            // CURRENT DYNAMIC REGION:
-            // porosityF < criticalPorosity
-            // =====================================================
-
             label nCellsBelowCriticalPorosity = 0;
 
             scalar regionVolume = 0.0;
@@ -154,9 +142,6 @@ functions
             scalar porosityVolSum = 0.0;
 
 
-            // =====================================================
-            // WHOLE DOMAIN + CURRENT REGION
-            // =====================================================
 
             forAll(porosityF, cellI)
             {
@@ -201,10 +186,6 @@ functions
             }
 
 
-            // =====================================================
-            // MPI REDUCTIONS
-            // =====================================================
-
             reduce
             (
                 nCellsBelowCriticalPorosity,
@@ -248,9 +229,6 @@ functions
             );
 
 
-            // =====================================================
-            // AVERAGES
-            // =====================================================
 
             scalar avgPorosityBelowCriticalPorosity = 0.0;
 
@@ -271,9 +249,6 @@ functions
             }
 
 
-            // =====================================================
-            // WRITE ONE FILE
-            // =====================================================
 
             if (Pstream::master())
             {
